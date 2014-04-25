@@ -34,7 +34,7 @@ export KBUILD_BUILD_USER="Anderson";
 export KBUILD_BUILD_HOST="mint";
 
 # system compiler
-export CROSS_COMPILE=./toolch/L4.10/bin/arm-gnueabi-;
+export CROSS_COMPILE=./toolch/arm-eabi-4.8/bin/arm-eabi-;
 
 export NUMBEROFCPUS=`grep 'processor' /proc/cpuinfo | wc -l`;
 
