@@ -16,16 +16,16 @@ fi;
 mount -o ro,remount /system /system;
 
 # set on boot for s2w, dt2w, s2s
-if [ -d /sdcard/s2Boot/ ]; then
-	[ -e /sdcard/s2Boot/s2w ] && echo 1 > /sys/android_touch/sweep2wake;
-	[ -e /sdcard/s2Boot/s2s ] && echo 2 > /sys/android_touch/sweep2wake;
-	[ -e /sdcard/s2Boot/dtb ] && echo 1 > /sys/android_touch/doubletap2wake;
-	[ -e /sdcard/s2Boot/dt  ] && echo 2 > /sys/android_touch/doubletap2wake;
-	[ -e /sdcard/s2Boot/pwr ] && echo 1 > /sys/module/qpnp_power_on/parameters/pwrkey_suspend;
-	[ -e /sdcard/s2Boot/timer ] && cp -f /sdcard/s2Boot/timer /sys/android_touch/wake_timeout;
-else
-	mkdir /sdcard/s2Boot/;
-fi;
+#if [ -d /sdcard/s2Boot/ ]; then
+#	[ -e /sdcard/s2Boot/s2w ] && echo 1 > /sys/android_touch/sweep2wake;
+#	[ -e /sdcard/s2Boot/s2s ] && echo 2 > /sys/android_touch/sweep2wake;
+#	[ -e /sdcard/s2Boot/dtb ] && echo 1 > /sys/android_touch/doubletap2wake;
+#	[ -e /sdcard/s2Boot/dt  ] && echo 2 > /sys/android_touch/doubletap2wake;
+#	[ -e /sdcard/s2Boot/pwr ] && echo 1 > /sys/module/qpnp_power_on/parameters/pwrkey_suspend;
+#	[ -e /sdcard/s2Boot/timer ] && cp -f /sdcard/s2Boot/timer /sys/android_touch/wake_timeout;
+#else
+#	mkdir /sdcard/s2Boot/;
+#fi;
 
 echo 85 1500000:90 1800000:70 > /sys/devices/system/cpu/cpufreq/interactive/target_loads
 echo 20000 1400000:40000 1700000:20000 > /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay
