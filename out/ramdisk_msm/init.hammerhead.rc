@@ -21,6 +21,8 @@ on early-init
     chown system system /sys/kernel/debug/kgsl/proc
 
 on init
+    chmod 0701 /mnt/media_rw
+    mkdir /mnt/media_rw/usbdisk 0775 system system
     # See storage config details at http://source.android.com/tech/storage/
     mkdir /mnt/shell/emulated 0700 shell shell
     mkdir /storage/emulated 0555 root root
@@ -28,6 +30,7 @@ on init
     # Set permissions for persist partition
     mkdir /persist 0771 system system
     mkdir /firmware 0771 system system
+    mkdir /storage/usbdisk 0000 system system
 
     export EXTERNAL_STORAGE /storage/emulated/legacy
     export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
@@ -49,6 +52,11 @@ on early-boot
     setrlimit 8 67108864 67108864
 
 on boot
+
+    chown system system /sys/android_touch/sweep2wake
+    chown system system /sys/kernel/fast_charge/force_fast_charge
+    chown system system /system/etc/init.d.cfg
+
     # Enable DEBUG_SUSPEND, DEBUG_EXIT_SUSPEND, and DEBUG_WAKEUP
     write /sys/module/wakelock/parameters/debug_mask 7
 
@@ -217,6 +225,18 @@ on post-fs-data
     chmod 664 /sys/devices/system/cpu/cpu1/online
     chmod 664 /sys/devices/system/cpu/cpu2/online
     chmod 664 /sys/devices/system/cpu/cpu3/online	
+    write /dev/cpuctl/apps/cpu.notify_on_migrate 1
+
+    # Hardware tunables
+    chown root system /sys/class/timed_output/vibrator/amp
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal
+    chown root system /sys/devices/platform/kcal_ctrl.0/kcal_ctrl
+    chmod 0664 /sys/class/timed_output/vibrator/amp
+    chmod 0664 /sys/devices/platform/kcal_ctrl.0/kcal
+    chmod 0664 /sys/devices/platform/kcal_ctrl.0/kcal_ctrl
+    restorecon /sys/class/timed_output/vibrator/amp
+    restorecon /sys/devices/platform/kcal_ctrl.0/kcal
+    restorecon /sys/devices/platform/kcal_ctrl.0/kcal_ctrl
 
     # Torch
     chown system camera /sys/class/leds/led:flash_torch/brightness
@@ -382,6 +402,10 @@ service qseecomd /system/bin/qseecomd
 service sdcard /system/bin/sdcard -u 1023 -g 1023 -l /data/media /mnt/shell/emulated
     class late_start
 
+service fuse_usbdisk /system/bin/sdcard -u 1023 -g 1023 /mnt/media_rw/usbdisk /storage/usbdisk
+    class late_start
+    disabled
+
 service charger /charger
     class charger
 
@@ -408,7 +432,7 @@ service bugreport /system/bin/dumpstate -d -p -B \
 service mpdecision /system/bin/mpdecision --no_sleep --avg_comp
    class main
    user root
-   group root
+   group root system
    disabled
 
 service ssr_ramdump /system/bin/subsystem_ramdump -m -t emmc
@@ -438,6 +462,21 @@ service fkbootscript /sbin/fkbootscript.sh
 	user root
 	disabled
     oneshot
+
+service qrngd /system/bin/qrngd -f
+    class main
+    user root
+    group root
+
+service qrngp /system/bin/qrngp
+    class main
+    user root
+    group root
+    oneshot
+    disabled
+
+on property:sys.boot_completed=1
+    start qrngp
 
 ## Power profiles
 ## restarting thermal-engine will kill the system :/
