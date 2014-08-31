@@ -30,8 +30,8 @@ export SUB_ARCH=arm;
 # build script
 export USER=`whoami`;
 export TMPFILE=`mktemp -t`;
-export KBUILD_BUILD_USER="Anderson";
-export KBUILD_BUILD_HOST="mint";
+export KBUILD_BUILD_USER="Anderson-Aragão";
+export KBUILD_BUILD_HOST="MacBook-Pro";
 
 # system compiler
 export CROSS_COMPILE=./toolch/L4.9.1/bin/arm-eabi-;
