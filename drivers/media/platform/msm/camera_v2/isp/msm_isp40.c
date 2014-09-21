@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -367,8 +367,17 @@ static void msm_vfe40_process_camif_irq(struct vfe_device *vfe_dev,
 	if (!(irq_status0 & 0xF))
 		return;
 
-	if (irq_status0 & (1 << 0))
+	if (irq_status0 & (1 << 0)) {
 		ISP_DBG("%s: SOF IRQ\n", __func__);
+		if (vfe_dev->axi_data.src_info[VFE_PIX_0].raw_stream_count > 0
+			&& vfe_dev->axi_data.src_info[VFE_PIX_0].
+			pix_stream_count == 0) {
+			msm_isp_sof_notify(vfe_dev, VFE_PIX_0, ts);
+			if (vfe_dev->axi_data.stream_update)
+				msm_isp_axi_stream_update(vfe_dev);
+			msm_isp_update_framedrop_reg(vfe_dev);
+		}
+	}
 	if (irq_status0 & (1 << 1))
 		ISP_DBG("%s: EOF IRQ\n", __func__);
 	if (irq_status0 & (1 << 2))
@@ -464,74 +473,44 @@ static void msm_vfe40_process_error_status(struct vfe_device *vfe_dev)
 		pr_err_ratelimited("%s: violation\n", __func__);
 		msm_vfe40_process_violation_status(vfe_dev);
 	}
-	if (error_status1 & (1 << 9)) {
-		vfe_dev->stats->imagemaster0_overflow++;
+	if (error_status1 & (1 << 9))
 		pr_err_ratelimited("%s: image master 0 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 10)) {
-		vfe_dev->stats->imagemaster1_overflow++;
+	if (error_status1 & (1 << 10))
 		pr_err_ratelimited("%s: image master 1 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 11)) {
-		vfe_dev->stats->imagemaster2_overflow++;
+	if (error_status1 & (1 << 11))
 		pr_err_ratelimited("%s: image master 2 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 12)) {
-		vfe_dev->stats->imagemaster3_overflow++;
+	if (error_status1 & (1 << 12))
 		pr_err_ratelimited("%s: image master 3 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 13)) {
-		vfe_dev->stats->imagemaster4_overflow++;
+	if (error_status1 & (1 << 13))
 		pr_err_ratelimited("%s: image master 4 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 14)) {
-		vfe_dev->stats->imagemaster5_overflow++;
+	if (error_status1 & (1 << 14))
 		pr_err_ratelimited("%s: image master 5 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 15)) {
-		vfe_dev->stats->imagemaster6_overflow++;
+	if (error_status1 & (1 << 15))
 		pr_err_ratelimited("%s: image master 6 bus overflow\n",
 			__func__);
-	}
-	if (error_status1 & (1 << 16)) {
-		vfe_dev->stats->be_overflow++;
+	if (error_status1 & (1 << 16))
 		pr_err_ratelimited("%s: status be bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 17)) {
-		vfe_dev->stats->bg_overflow++;
+	if (error_status1 & (1 << 17))
 		pr_err_ratelimited("%s: status bg bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 18)) {
-		vfe_dev->stats->bf_overflow++;
+	if (error_status1 & (1 << 18))
 		pr_err_ratelimited("%s: status bf bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 19)) {
-		vfe_dev->stats->awb_overflow++;
+	if (error_status1 & (1 << 19))
 		pr_err_ratelimited("%s: status awb bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 20)) {
-		vfe_dev->stats->imagemaster0_overflow++;
+	if (error_status1 & (1 << 20))
 		pr_err_ratelimited("%s: status rs bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 21)) {
-		vfe_dev->stats->cs_overflow++;
+	if (error_status1 & (1 << 21))
 		pr_err_ratelimited("%s: status cs bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 22)) {
-		vfe_dev->stats->ihist_overflow++;
+	if (error_status1 & (1 << 22))
 		pr_err_ratelimited("%s: status ihist bus overflow\n", __func__);
-	}
-	if (error_status1 & (1 << 23)) {
-		vfe_dev->stats->skinbhist_overflow++;
+	if (error_status1 & (1 << 23))
 		pr_err_ratelimited("%s: status skin bhist bus overflow\n",
 			__func__);
-	}
 }
 
 static void msm_vfe40_read_irq_status(struct vfe_device *vfe_dev,
@@ -812,13 +791,20 @@ static void msm_vfe40_update_camif_state(struct vfe_device *vfe_dev,
 	enum msm_isp_camif_update_state update_state)
 {
 	uint32_t val;
+	bool bus_en, vfe_en;
 	if (update_state == NO_UPDATE)
 		return;
 
 	val = msm_camera_io_r(vfe_dev->vfe_base + 0x2F8);
 	if (update_state == ENABLE_CAMIF) {
+		bus_en =
+			((vfe_dev->axi_data.
+			src_info[VFE_PIX_0].raw_stream_count > 0) ? 1 : 0);
+		vfe_en =
+			((vfe_dev->axi_data.
+			src_info[VFE_PIX_0].pix_stream_count > 0) ? 1 : 0);
 		val &= 0xFFFFFF3F;
-		val = val | 1 << 7 | 1 << 6;
+		val = val | bus_en << 7 | vfe_en << 6;
 		msm_camera_io_w(val, vfe_dev->vfe_base + 0x2F8);
 		msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x2F4);
 		vfe_dev->axi_data.src_info[VFE_PIX_0].active = 1;
@@ -826,10 +812,7 @@ static void msm_vfe40_update_camif_state(struct vfe_device *vfe_dev,
 		msm_camera_io_w_mb(0x0, vfe_dev->vfe_base + 0x2F4);
 		vfe_dev->axi_data.src_info[VFE_PIX_0].active = 0;
 	} else if (update_state == DISABLE_CAMIF_IMMEDIATELY) {
-		msm_camera_io_w_mb(0x6, vfe_dev->vfe_base + 0x2F4);
-		vfe_dev->hw_info->vfe_ops.axi_ops.halt(vfe_dev);
-		vfe_dev->hw_info->vfe_ops.core_ops.reset_hw(vfe_dev);
-		vfe_dev->hw_info->vfe_ops.core_ops.init_hw_reg(vfe_dev);
+		msm_camera_io_w_mb(0x2, vfe_dev->vfe_base + 0x2F4);
 		vfe_dev->axi_data.src_info[VFE_PIX_0].active = 0;
 	}
 }
@@ -876,8 +859,10 @@ static void msm_vfe40_axi_cfg_wm_reg(
 		msm_camera_io_w(val, vfe_dev->vfe_base + wm_base + 0x14);
 
 		/*WR_BUFFER_CFG*/
-		val = (stream_info->plane_cfg[
-				plane_idx].output_stride/8) << 16 |
+		val =
+			msm_isp_cal_word_per_line(stream_info->output_format,
+			stream_info->plane_cfg[
+				plane_idx].output_stride) << 16 |
 			(stream_info->plane_cfg[
 				plane_idx].output_height - 1) << 4 |
 			VFE40_BURST_LEN;

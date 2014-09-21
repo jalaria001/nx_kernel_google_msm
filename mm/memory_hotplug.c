@@ -536,10 +536,10 @@ int __ref online_pages(unsigned long pfn, unsigned long nr_pages)
 	drain_all_pages();
 	if (onlined_pages) {
 		node_set_state(zone_to_nid(zone), N_HIGH_MEMORY);
-	if (need_zonelists_rebuild)
-		build_all_zonelists(zone);
-	else
-		zone_pcp_update(zone);
+		if (need_zonelists_rebuild)
+			build_all_zonelists(zone);
+		else
+			zone_pcp_update(zone);
 	}
 
 	mutex_unlock(&zonelists_mutex);

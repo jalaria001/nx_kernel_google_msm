@@ -93,12 +93,9 @@
 
 		qcom,hdmi-audio-rx;
 
-		qcom,us-euro-gpios = <&pm8941_gpios 20 0>;
-
 		qcom,audio-routing =
 			"RX_BIAS", "MCLK",
 			"LDO_H", "MCLK",
-			"AIF4 MAD", "MCLK",
 			"AMIC1", "MIC BIAS1 External",
 			"MIC BIAS1 External", "Handset Mic",
 			"AMIC2", "MIC BIAS2 External",
@@ -719,7 +716,7 @@
 &rpm_bus {
 	rpm-regulator-ldoa22 {
 		pm8941_l22: regulator-l22 {
-			regulator-min-microvolt = <2700000>;
+			regulator-min-microvolt = <2250000>;
 			regulator-max-microvolt = <3300000>;
 			qcom,init-voltage = <2700000>;
 		};

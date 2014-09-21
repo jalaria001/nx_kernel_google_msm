@@ -100,9 +100,6 @@ struct timed_vibrator_data {
 	bool use_vdd_supply;
 	struct regulator *vdd_reg;
 };
-#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
-static struct timed_vibrator_data *vib_dev;
-#endif
 
 static struct clk *cam_gp1_clk;
 
@@ -425,13 +422,6 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 	spin_unlock_irqrestore(&vib->spinlock, flags);
 }
 
-#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
-void set_vibrate(int value)
-{
-	vibrator_enable(&vib_dev->dev, value);
-}
-#endif
-
 static int vibrator_gpio_init(struct timed_vibrator_data *vib)
 {
 	int rc;
@@ -738,7 +728,7 @@ static ssize_t vibrator_warmup_ms_store(struct device *dev,
 }
 
 static struct device_attribute vibrator_device_attrs[] = {
-	__ATTR(amp, 0666, vibrator_amp_show, vibrator_amp_store),
+	__ATTR(amp, S_IRUGO | S_IWUSR, vibrator_amp_show, vibrator_amp_store),
 	__ATTR(n_val, S_IRUGO | S_IWUSR, vibrator_pwm_show, vibrator_pwm_store),
 	__ATTR(braking_gain, S_IRUGO | S_IWUSR,
 		vibrator_braking_gain_show, vibrator_braking_gain_store),
@@ -821,9 +811,7 @@ static int msm8974_pwm_vibrator_probe(struct platform_device *pdev)
 			goto err_sysfs;
 		}
 	}
-#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
-	vib_dev = vib;
-#endif
+
 	pr_info("%s: probed\n", __func__);
 	return 0;
 

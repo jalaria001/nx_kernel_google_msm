@@ -2371,8 +2371,8 @@ static int dvb_dmxdev_section_callback(const u8 *buffer1, size_t buffer1_len,
 	if (ret == buffer1_len)
 		ret = dvb_dmxdev_buffer_write(&dmxdevfilter->buffer, buffer2,
 					      buffer2_len);
-
 	if (ret < 0) {
+		dvb_dmxdev_flush_events(&dmxdevfilter->events);
 		dmxdevfilter->buffer.error = ret;
 
 		event.type = DMX_EVENT_BUFFER_OVERFLOW;
@@ -2736,6 +2736,7 @@ static int dvb_dmxdev_ts_event_cb(struct dmx_ts_feed *feed,
 		dprintk("dmxdev: buffer overflow\n");
 
 		buffer->error = -EOVERFLOW;
+		dvb_dmxdev_flush_events(events);
 		event.type = DMX_EVENT_BUFFER_OVERFLOW;
 		dvb_dmxdev_add_event(&dmxdevfilter->events, &event);
 
@@ -2807,6 +2808,11 @@ static int dvb_dmxdev_ts_event_cb(struct dmx_ts_feed *feed,
 			events->current_event_data_size = 0;
 		 }
 	}
+	ret = dvb_dmxdev_buffer_write(buffer, buffer1, buffer1_len);
+	if (ret == buffer1_len)
+		ret = dvb_dmxdev_buffer_write(buffer, buffer2, buffer2_len);
+	if (ret < 0)
+		buffer->error = ret;
 	spin_unlock(&dmxdevfilter->dev->lock);
 	wake_up_all(&buffer->queue);
 	return 0;

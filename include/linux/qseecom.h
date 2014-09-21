@@ -188,7 +188,6 @@ struct qseecom_send_modfd_listener_resp {
 	struct qseecom_ion_fd_info ifd_data[MAX_ION_FD]; /* in */
 };
 
-
 #define QSEECOM_IOC_MAGIC    0x97
 
 

@@ -211,7 +211,6 @@
 		compatible = "qcom,msm-vidc";
 		reg = <0xfdc00000 0xff000>;
 		interrupts = <0 44 0>;
-		vdd-supply = <&gdsc_venus>;
 		qcom,hfi = "venus";
 		qcom,has-ocmem;
 		qcom,max-hw-load = <1224450>; /* 4k @ 30 + 1080p @ 30*/
@@ -279,24 +278,6 @@
 		qcom,msm-bus,vectors-KBps =
 				<87 512 0 0>,
 				<87 512 60000 960000>;
-	};
-
-	rmtfs_sharedmem {
-		compatible = "qcom,sharedmem-uio";
-		reg = <0x0fd80000 0x00180000>;
-		reg-names = "rmtfs";
-	};
-
-	dsp_sharedmem {
-		compatible = "qcom,sharedmem-uio";
-		reg = <0x0fd60000 0x00020000>;
-		reg-names = "rfsa_dsp";
-	};
-
-	mdm_sharedmem {
-		compatible = "qcom,sharedmem-uio";
-		reg = <0x0fd60000 0x00020000>;
-		reg-names = "rfsa_mdm";
 	};
 
 	sdcc1: qcom,sdcc@f9824000 {
@@ -715,9 +696,6 @@
 		reg-names = "slimbus_physical", "slimbus_bam_physical";
 		interrupts = <0 163 0 0 164 0>;
 		interrupt-names = "slimbus_irq", "slimbus_bam_irq";
-		qcom,apps-ch-pipes = <0x60000000>;
-		qcom,ea-pc = <0x30>;
-		qcom,slim-mdm = <1>;
 
 		taiko_codec {
 			compatible = "qcom,taiko-slim-pgd";
@@ -878,7 +856,7 @@
 		interrupts = <0 96 0>;
 		interrupt-names = "qup_err_intr";
 		qcom,i2c-bus-freq = <100000>;
-		qcom,i2c-src-freq = <50000000>;
+		qcom,i2c-src-freq = <19200000>;
 		qcom,master-id = <86>;
 	};
 
@@ -1355,8 +1333,8 @@
 		qcom,msm-bus,num-cases = <2>;
 		qcom,msm-bus,num-paths = <1>;
 		qcom,msm-bus,vectors-KBps =
-				<88 618 0 0>,
-				<88 618 0 800>;
+				<1 618 0 0>,
+				<1 618 0 800>;
         };
 
 	qseecom: qcom,qseecom@7b00000 {
@@ -1494,6 +1472,7 @@
 		qcom,bam-pipe-pair = <2>;
 		qcom,ce-hw-instance = <1>;
 		qcom,ce-device = <0>;
+		qcom,clk-mgmt-sus-res;
                 qcom,msm-bus,name = "qcrypto-noc";
 		qcom,msm-bus,num-cases = <2>;
 		qcom,msm-bus,num-paths = <1>;
@@ -1514,6 +1493,7 @@
 		qcom,bam-pipe-pair = <0>;
 		qcom,ce-hw-instance = <1>;
 		qcom,ce-device = <1>;
+		qcom,clk-mgmt-sus-res;
                 qcom,msm-bus,name = "qcrypto-noc";
 		qcom,msm-bus,num-cases = <2>;
 		qcom,msm-bus,num-paths = <1>;
@@ -1579,7 +1559,7 @@
 		qcom,sensor-id = <0>;
 		qcom,poll-ms = <250>;
 		qcom,limit-temp = <60>;
-		qcom,temp-hysteresis = <10>;
+		qcom,temp-hysteresis = <0>;
 		qcom,freq-step = <2>;
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-limit-temp = <80>;

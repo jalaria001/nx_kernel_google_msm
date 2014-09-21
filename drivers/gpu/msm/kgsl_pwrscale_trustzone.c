@@ -52,6 +52,7 @@ unsigned int up_threshold = 50;
 unsigned int down_threshold = 25;
 unsigned int up_differential = 10;
 bool debug = 0;
+unsigned long gpu_pref_counter;
 
 module_param(up_threshold, int, 0664);
 module_param(down_threshold, int, 0664);
@@ -172,8 +173,8 @@ static void tz_idle(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale)
 	if (debug)
 	{ 
 		pr_info("GPU load: %u\n", gpu_stats.load);
-		pr_info("GPU frequency: %d\n",
-			pwr->pwrlevels[pwr->active_pwrlevel].gpu_freq);
+		pr_info("GPU frequency: %d\n", 
+								pwr->pwrlevels[pwr->active_pwrlevel].gpu_freq);
 	}
 
 	gpu_stats.threshold = up_threshold;
@@ -186,12 +187,18 @@ static void tz_idle(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale)
 
 	if (gpu_stats.load > gpu_stats.threshold)
 	{
+		if (gpu_pref_counter < 100)
+			++gpu_pref_counter;
+
 		if (pwr->active_pwrlevel > pwr->max_pwrlevel)
 			kgsl_pwrctrl_pwrlevel_change(device,
 					     pwr->active_pwrlevel - 1);
 	}
 	else if (gpu_stats.load < down_threshold)
 	{
+		if (gpu_pref_counter > 0)
+			--gpu_pref_counter;
+
 		if (pwr->active_pwrlevel < pwr->min_pwrlevel)
 			kgsl_pwrctrl_pwrlevel_change(device,
 					     pwr->active_pwrlevel + 1);
@@ -218,10 +225,11 @@ static void tz_sleep(struct kgsl_device *device,
 
 	if (debug)
 	{
-		pr_info("GPU sleep frequency: %d\n",
-			pwr->pwrlevels[pwr->active_pwrlevel].gpu_freq);
+		pr_info("GPU sleep frequency: %d\n", 
+								pwr->pwrlevels[pwr->active_pwrlevel].gpu_freq);
 	}
 
+	gpu_pref_counter = 0;
 	priv->bin.total_time = 0;
 	priv->bin.busy_time = 0;
 }
@@ -238,7 +246,7 @@ static int tz_init(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale)
 	if (pwrscale->priv == NULL)
 		return -ENOMEM;
 	priv->idle_dcvs = 0;
-	priv->governor = TZ_GOVERNOR_INTERACTIVE;
+	priv->governor = TZ_GOVERNOR_ONDEMAND;
 	spin_lock_init(&tz_lock);
 	kgsl_pwrscale_policy_add_files(device, pwrscale, &tz_attr_group);
 	for (i = 0; i < pwr->num_pwrlevels - 1; i++) {

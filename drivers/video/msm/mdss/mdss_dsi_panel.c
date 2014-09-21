@@ -30,13 +30,19 @@
 #include <linux/input/doubletap2wake.h>
 #endif
 #endif
+
+#include <asm/system_info.h>
+
 #ifdef CONFIG_PWRKEY_SUSPEND
 #include <linux/qpnp/power-on.h>
 #endif
 
-#include <asm/system_info.h>
-
 #include "mdss_dsi.h"
+#include "mdss_mdp.h"
+
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 
 #define DT_CMD_HDR 6
 #define GAMMA_COMPAT 11
@@ -49,6 +55,7 @@ DEFINE_LED_TRIGGER(bl_led_trigger);
 #if defined(CONFIG_BACKLIGHT_LM3630)
 extern void lm3630_lcd_backlight_set_level(int level);
 #endif
+extern void mdss_mdp_cmds_send(unsigned int on);
 
 static struct mdss_dsi_phy_ctrl phy_params;
 static struct mdss_panel_common_pdata *local_pdata;
@@ -192,7 +199,7 @@ void mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	bool prevent_sleep = false;
 #endif
 #if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE)
-	prevent_sleep = (s2w_switch > 0);
+	prevent_sleep = (s2w_switch > 0) && (s2w_s2sonly == 0);
 #endif
 #if defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
 	prevent_sleep = prevent_sleep || (dt2w_switch > 0);
@@ -327,6 +334,10 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_POWERSUSPEND
+	set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
+#endif
+
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
@@ -351,7 +362,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	bool prevent_sleep = false;
 #endif
 #if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE)
-	prevent_sleep = (s2w_switch > 0);
+	prevent_sleep = (s2w_switch > 0) && (s2w_s2sonly == 0);
 #endif
 #if defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
 	prevent_sleep = prevent_sleep || (dt2w_switch > 0);
@@ -392,6 +403,10 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	if (ctrl->off_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
 	mutex_unlock(&panel_cmd_mutex);
+
+#ifdef CONFIG_POWERSUSPEND
+	set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
+#endif
 
 	pr_info("%s:\n", __func__);
 	return 0;
@@ -928,9 +943,6 @@ static void send_local_on_cmds(struct work_struct *work)
 			    panel_data);
 
 	mutex_lock(&panel_cmd_mutex);
-	if (cmds_panel_data->panel_info.cont_splash_enabled)
-		return;
-
 	if (local_pdata->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &local_pdata->on_cmds);
 	mutex_unlock(&panel_cmd_mutex);

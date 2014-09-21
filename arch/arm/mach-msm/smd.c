@@ -1117,19 +1117,12 @@ static unsigned ch_read_buffer(struct smd_channel *ch, void **ptr)
 {
 	unsigned head = ch->half_ch->get_head(ch->recv);
 	unsigned tail = ch->half_ch->get_tail(ch->recv);
-	unsigned fifo_size = ch->fifo_size;
-
-	BUG_ON(fifo_size >= SZ_1M);
-	BUG_ON(head >= fifo_size);
-	BUG_ON(tail >= fifo_size);
-	BUG_ON(OVERFLOW_ADD_UNSIGNED(uintptr_t, (uintptr_t)ch->recv_data,
-								 tail));
-
 	*ptr = (void *) (ch->recv_data + tail);
+
 	if (tail <= head)
 		return head - tail;
 	else
-		return fifo_size - tail;
+		return ch->fifo_size - tail;
 }
 
 static int read_intr_blocked(struct smd_channel *ch)
@@ -1229,23 +1222,16 @@ static unsigned ch_write_buffer(struct smd_channel *ch, void **ptr)
 {
 	unsigned head = ch->half_ch->get_head(ch->send);
 	unsigned tail = ch->half_ch->get_tail(ch->send);
-	unsigned fifo_size = ch->fifo_size;
-
-	BUG_ON(fifo_size >= SZ_1M);
-	BUG_ON(head >= fifo_size);
-	BUG_ON(tail >= fifo_size);
-	BUG_ON(OVERFLOW_ADD_UNSIGNED(uintptr_t, (uintptr_t)ch->send_data,
-								head));
-
 	*ptr = (void *) (ch->send_data + head);
+
 	if (head < tail) {
 		return tail - head - SMD_FIFO_FULL_RESERVE;
 	} else {
 		if (tail < SMD_FIFO_FULL_RESERVE)
-			return fifo_size + tail - head
+			return ch->fifo_size + tail - head
 					- SMD_FIFO_FULL_RESERVE;
 		else
-			return fifo_size - head;
+			return ch->fifo_size - head;
 	}
 }
 
@@ -3542,7 +3528,7 @@ static int __devinit parse_smd_devicetree(struct device_node *node,
 	ret = request_irq(irq_line,
 				private_irq->irq_handler,
 				irq_flags,
-				node->name ? node->name : "smd_dev",
+				"smd_dev",
 				NULL);
 	if (ret < 0) {
 		pr_err("%s: request_irq() failed on %d\n", __func__, irq_line);
@@ -3609,7 +3595,7 @@ static int __devinit parse_smsm_devicetree(struct device_node *node,
 	ret = request_irq(irq_line,
 				private_irq->irq_handler,
 				IRQF_TRIGGER_RISING,
-				node->name ? node->name : "smsm_dev",
+				"smsm_dev",
 				NULL);
 	if (ret < 0) {
 		pr_err("%s: request_irq() failed on %d\n", __func__, irq_line);

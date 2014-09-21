@@ -596,7 +596,6 @@ out:
 int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 {
 	unsigned long flags;
-	int tuning_seq_cnt = 3;
 	u8 phase, *data_buf, tuned_phases[16], tuned_phase_cnt = 0;
 	const u32 *tuning_block_pattern = tuning_block_64;
 	int size = sizeof(tuning_block_64); /* Tuning pattern size in bytes */
@@ -623,17 +622,16 @@ int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 	}
 	spin_unlock_irqrestore(&host->lock, flags);
 
+	/* first of all reset the tuning block */
+	rc = msm_init_cm_dll(host);
+	if (rc)
+		goto out;
+
 	data_buf = kmalloc(size, GFP_KERNEL);
 	if (!data_buf) {
 		rc = -ENOMEM;
 		goto out;
 	}
-
-retry:
-	/* first of all reset the tuning block */
-	rc = msm_init_cm_dll(host);
-	if (rc)
-		goto kfree;
 
 	phase = 0;
 	do {
@@ -691,12 +689,10 @@ retry:
 		pr_debug("%s: %s: finally setting the tuning phase to %d\n",
 				mmc_hostname(mmc), __func__, phase);
 	} else {
-		if (--tuning_seq_cnt)
-			goto retry;
 		/* tuning failed */
 		pr_err("%s: %s: no tuning point found\n",
 			mmc_hostname(mmc), __func__);
-		rc = -EIO;
+		rc = -EAGAIN;
 	}
 
 kfree:
@@ -2340,9 +2336,6 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 		goto vreg_deinit;
 	}
 
-	/* Unset HC_MODE_EN bit in HC_MODE register */
-	writel_relaxed(0, (msm_host->core_mem + CORE_HC_MODE));
-
 	/* Set SW_RST bit in POWER register (Offset 0x0) */
 	writel_relaxed(readl_relaxed(msm_host->core_mem + CORE_POWER) |
 			CORE_SW_RST, msm_host->core_mem + CORE_POWER);
@@ -2517,7 +2510,6 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 	else
 		pm_runtime_enable(&pdev->dev);
 
-	device_enable_async_suspend(&pdev->dev);
 	/* Successful initialization */
 	goto out;
 

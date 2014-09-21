@@ -35,8 +35,6 @@
 
 struct msm_vidc_drv *vidc_driver;
 
-uint32_t msm_vidc_pwr_collapse_delay = 10000;
-
 static inline struct msm_vidc_inst *get_vidc_inst(struct file *filp, void *fh)
 {
 	return container_of(filp->private_data,
@@ -347,31 +345,6 @@ static ssize_t msm_vidc_link_name_show(struct device *dev,
 
 static DEVICE_ATTR(link_name, 0644, msm_vidc_link_name_show, NULL);
 
-static ssize_t store_pwr_collapse_delay(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf, size_t count)
-{
-	unsigned long val = 0;
-	int rc = 0;
-	rc = kstrtoul(buf, 0, &val);
-	if (rc)
-		return rc;
-	else if (val == 0)
-		return -EINVAL;
-	msm_vidc_pwr_collapse_delay = val;
-	return count;
-}
-
-static ssize_t show_pwr_collapse_delay(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%u\n", msm_vidc_pwr_collapse_delay);
-}
-
-static DEVICE_ATTR(pwr_collapse_delay, 0644, show_pwr_collapse_delay,
-		store_pwr_collapse_delay);
-
 static int __devinit msm_vidc_probe(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -389,12 +362,6 @@ static int __devinit msm_vidc_probe(struct platform_device *pdev)
 	rc = msm_vidc_initialize_core(pdev, core);
 	if (rc) {
 		dprintk(VIDC_ERR, "Failed to init core\n");
-		goto err_v4l2_register;
-	}
-	rc = device_create_file(&pdev->dev, &dev_attr_pwr_collapse_delay);
-	if (rc) {
-		dprintk(VIDC_ERR,
-				"Failed to create pwr_collapse_delay sysfs node");
 		goto err_v4l2_register;
 	}
 	if (core->hfi_type == VIDC_HFI_Q6) {
@@ -525,35 +492,6 @@ static const struct of_device_id msm_vidc_dt_match[] = {
 	{.compatible = "qcom,msm-vidc"},
 };
 
-static int msm_vidc_pm_suspend(struct device *pdev)
-{
-	struct msm_vidc_core *core;
-
-	if (!pdev) {
-		dprintk(VIDC_ERR, "%s invalid device\n", __func__);
-		return -EINVAL;
-	}
-
-	core = (struct msm_vidc_core *)pdev->platform_data;
-	if (!core) {
-		dprintk(VIDC_ERR, "%s invalid core\n", __func__);
-		return -EINVAL;
-	}
-	dprintk(VIDC_INFO, "%s\n", __func__);
-
-	return msm_vidc_suspend(core->id);
-}
-
-static int msm_vidc_pm_resume(struct device *dev)
-{
-	dprintk(VIDC_INFO, "%s\n", __func__);
-	return 0;
-}
-
-static const struct dev_pm_ops msm_vidc_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(msm_vidc_pm_suspend, msm_vidc_pm_resume)
-};
-
 MODULE_DEVICE_TABLE(of, msm_vidc_dt_match);
 
 static struct platform_driver msm_vidc_driver = {
@@ -563,7 +501,6 @@ static struct platform_driver msm_vidc_driver = {
 		.name = "msm_vidc_v4l2",
 		.owner = THIS_MODULE,
 		.of_match_table = msm_vidc_dt_match,
-		.pm = &msm_vidc_pm_ops,
 	},
 };
 

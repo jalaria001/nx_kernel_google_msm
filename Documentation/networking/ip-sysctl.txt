@@ -1053,7 +1053,6 @@ conf/all/forwarding - BOOLEAN
 
 proxy_ndp - INTEGER
 	Do proxy ndp.
-
 	Possible values are:
 		0 Proxy NDP is disabled
 		1 Proxy NDP is enabled

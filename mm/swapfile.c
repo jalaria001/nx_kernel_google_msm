@@ -387,7 +387,7 @@ scan:
 		}
 	}
 	offset = si->lowest_bit;
-	while (++offset < scan_base) {
+	while (offset < scan_base) {
 		if (!si->swap_map[offset]) {
 			spin_lock(&swap_lock);
 			goto checks;
@@ -400,6 +400,7 @@ scan:
 			cond_resched();
 			latency_ration = LATENCY_LIMIT;
 		}
+		offset++;
 	}
 	spin_lock(&swap_lock);
 
@@ -1554,7 +1555,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	struct address_space *mapping;
 	struct inode *inode;
 	char *pathname;
-	int oom_score_adj;
+	short oom_score_adj;
 	int i, type, prev;
 	int err;
 
@@ -1670,6 +1671,16 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		mutex_unlock(&inode->i_mutex);
 	}
 	filp_close(swap_file, NULL);
+
+	/*
+	* clear SWP_USED flag after all resources freed
+	* so that swapon can reuse this swap_info in alloc_swap_info() safely
+	* it is ok to not hold p->lock after we cleared its SWP_WRITEOK
+	*/
+	spin_lock(&swap_lock);
+	p->flags = 0;
+	spin_unlock(&swap_lock);
+
 	err = 0;
 	atomic_inc(&proc_poll_event);
 	wake_up_interruptible(&proc_poll_wait);
