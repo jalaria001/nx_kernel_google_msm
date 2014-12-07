@@ -29,6 +29,9 @@
 #include "audio_acdb.h"
 #include "q6voice.h"
 
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+#include <linux/input/prevent_sleep.h>
+#endif
 
 #define TIMEOUT_MS 500
 
@@ -40,6 +43,10 @@
 #define CVP_CAL_SIZE 245760
 /* CVS CAL Size: 49152 = 48 * 1024 */
 #define CVS_CAL_SIZE 49152
+
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+bool in_phone_call = false;
+#endif
 
 enum {
 	VOC_TOKEN_NONE,
@@ -3474,8 +3481,15 @@ static int voice_cvs_start_record(struct voice_data *v, uint32_t rec_mode)
 		cvs_start_record.hdr.token = 0;
 		cvs_start_record.hdr.opcode = VSS_IRECORD_CMD_START;
 
+		// In order to enable stereo recording,
+		// i.e. TX on the left and RX on the right
+		// the respective ports need to be explicitly specified:
+		// INCALL_RECORD_TX => 0x8003
+		// INCALL_RECORD_RX => 0x8004
+		/*cvs_start_record.rec_mode.port_id =
+					VSS_IRECORD_PORT_ID_DEFAULT; */
 		cvs_start_record.rec_mode.port_id =
-					VSS_IRECORD_PORT_ID_DEFAULT;
+					VSS_IRECORD_PORT_ID_TX_RX;
 		if (rec_mode == VOC_REC_UPLINK) {
 			cvs_start_record.rec_mode.rx_tap_point =
 					VSS_IRECORD_TAP_POINT_NONE;
@@ -3498,6 +3512,9 @@ static int voice_cvs_start_record(struct voice_data *v, uint32_t rec_mode)
 			ret = -EINVAL;
 			goto fail;
 		}
+
+		// request stereo recording
+		cvs_start_record.rec_mode.mode = VSS_IRECORD_MODE_TX_RX_STEREO;
 
 		v->cvs_state = CMD_STATUS_FAIL;
 
@@ -4323,6 +4340,9 @@ int voc_end_voice_call(uint32_t session_id)
 
 		v->voc_state = VOC_RELEASE;
 	}
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+	in_phone_call = false;
+#endif
 	mutex_unlock(&v->lock);
 	return ret;
 }
@@ -4529,6 +4549,10 @@ int voc_start_voice_call(uint32_t session_id)
 		ret = -EINVAL;
 		goto fail;
 	}
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+	in_phone_call = true;
+#endif
+
 fail:
 	mutex_unlock(&v->lock);
 	return ret;
@@ -5130,6 +5154,8 @@ static int voice_free_oob_shared_mem(void)
 
 	rc = msm_audio_ion_free(v->shmem_info.sh_buf.client,
 				v->shmem_info.sh_buf.handle);
+	v->shmem_info.sh_buf.client = NULL;
+	v->shmem_info.sh_buf.handle = NULL;
 	if (rc < 0) {
 		pr_err("%s: Error:%d freeing memory\n", __func__, rc);
 

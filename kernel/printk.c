@@ -875,9 +875,9 @@ static int console_trylock_for_printk(unsigned int cpu)
 		}
 	}
 	printk_cpu = UINT_MAX;
+	raw_spin_unlock(&logbuf_lock);
 	if (wake)
 		up(&console_sem);
-	raw_spin_unlock(&logbuf_lock);
 	return retval;
 }
 static const char recursion_bug_msg [] =
@@ -1216,13 +1216,13 @@ void resume_console(void)
 	console_unlock();
 }
 
-static void __cpuinit console_flush(struct work_struct *work)
+static void console_flush(struct work_struct *work)
 {
 	console_lock();
 	console_unlock();
 }
 
-static __cpuinitdata DECLARE_WORK(console_cpu_notify_work, console_flush);
+static DECLARE_WORK(console_cpu_notify_work, console_flush);
 
 /**
  * console_cpu_notify - print deferred console messages after CPU hotplug
@@ -1238,7 +1238,7 @@ static __cpuinitdata DECLARE_WORK(console_cpu_notify_work, console_flush);
  * Special handling must be done for cases invoked from an atomic context,
  * as we can't be taking the console semaphore here.
  */
-static int __cpuinit console_cpu_notify(struct notifier_block *self,
+static int console_cpu_notify(struct notifier_block *self,
 	unsigned long action, void *hcpu)
 {
 	switch (action) {
@@ -1732,7 +1732,7 @@ late_initcall(printk_late_init);
 
 #if defined CONFIG_PRINTK
 
-int printk_sched(const char *fmt, ...)
+int printk_deferred(const char *fmt, ...)
 {
 	unsigned long flags;
 	va_list args;

@@ -19,6 +19,13 @@
 #include <linux/uaccess.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
+#if defined(CONFIG_LCD_KCAL)
+#include <mach/board_lge.h>
+extern int g_kcal_r;
+extern int g_kcal_g;
+extern int g_kcal_b;
+extern struct kcal_data kcal_value;
+#endif
 
 struct mdp_csc_cfg mdp_csc_convert[MDSS_MDP_MAX_CSC] = {
 	[MDSS_MDP_CSC_RGB2RGB] = {
@@ -1070,7 +1077,7 @@ static int pp_dspp_setup(u32 disp_num, struct mdss_mdp_mixer *mixer)
 			  (dither_depth_map[dither_cfg->b_cb_depth] << 2) |
 			  (dither_depth_map[dither_cfg->r_cr_depth] << 4));
 			offset += 0x14;
-			for (i = 0; i << 16; i += 4) {
+			for (i = 0; i < 16; i += 4) {
 				data = dither_matrix[i] |
 					(dither_matrix[i + 1] << 4) |
 					(dither_matrix[i + 2] << 8) |
@@ -1252,6 +1259,11 @@ int mdss_mdp_pp_resume(struct mdss_mdp_ctl *ctl, u32 dspp_num)
 			mdss_pp_res->gamut_disp_cfg[disp_num].flags |=
 				MDP_PP_OPS_WRITE;
 	}
+#if defined(CONFIG_LCD_KCAL)
+	if (disp_num == 0)
+		pp_sts.pgc_sts |= PP_STS_ENABLE;
+#endif
+
 	if (pp_sts.pgc_sts & PP_STS_ENABLE) {
 		flags |= PP_FLAGS_DIRTY_PGC;
 		if (!(mdss_pp_res->pgc_disp_cfg[disp_num].flags
@@ -1263,6 +1275,155 @@ int mdss_mdp_pp_resume(struct mdss_mdp_ctl *ctl, u32 dspp_num)
 	mdss_pp_res->pp_disp_flags[disp_num] |= flags;
 	return 0;
 }
+
+#if defined(CONFIG_LCD_KCAL)
+static struct mdp_ar_gc_lut_data test_r[GC_LUT_SEGMENTS] =
+{
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000001, 0x000000FF, 0x00000010},
+        {0x00000FFF, 0x00000000, 0x00007F80},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000}
+};
+
+static struct mdp_ar_gc_lut_data test_g[GC_LUT_SEGMENTS] =
+{
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000001, 0x000000FF, 0x00000010},
+        {0x00000FFF, 0x00000000, 0x00007F80},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000}
+};
+
+static struct mdp_ar_gc_lut_data test_b[GC_LUT_SEGMENTS] =
+{
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000001, 0x000000FF, 0x00000010},
+        {0x00000FFF, 0x00000000, 0x00007F80},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000},
+        {0x00000000, 0x00000000, 0x00000000}
+};
+
+void mdss_mdp_pp_argc(void)
+{
+	int disp_num = 0;
+	u32 tbl_size;
+
+	struct mdp_ar_gc_lut_data *r_data;
+	struct mdp_ar_gc_lut_data *g_data;
+	struct mdp_ar_gc_lut_data *b_data;
+	struct mdp_pgc_lut_data *pgc_config;
+
+
+	r_data = &mdss_pp_res->gc_lut_r[disp_num][0];
+	g_data = &mdss_pp_res->gc_lut_g[disp_num][0];
+	b_data = &mdss_pp_res->gc_lut_b[disp_num][0];
+
+	tbl_size = GC_LUT_SEGMENTS * sizeof(struct mdp_ar_gc_lut_data);
+	memcpy(r_data, test_r, tbl_size);
+	memcpy(g_data, test_g, tbl_size);
+	memcpy(b_data, test_b, tbl_size);
+
+
+	pgc_config = &mdss_pp_res->pgc_disp_cfg[disp_num];
+
+	pgc_config->r_data =
+		&mdss_pp_res->gc_lut_r[disp_num][0];
+	pgc_config->g_data =
+		&mdss_pp_res->gc_lut_g[disp_num][0];
+	pgc_config->b_data =
+		&mdss_pp_res->gc_lut_b[disp_num][0];
+
+	pgc_config->flags |= MDP_PP_OPS_WRITE;
+	pgc_config->flags |= MDP_PP_OPS_ENABLE;
+
+	pr_info(">>>>> %s \n", __func__);
+}
+
+
+#define NUM_QLUT 256
+#define MAX_KCAL_V (NUM_QLUT-1)
+
+#define SCALED_BY_KCAL(rgb, kcal) \
+	((rgb * kcal * NUM_QLUT ) / (MAX_KCAL_V * MAX_KCAL_V))
+
+void mdss_mdp_pp_argc_kcal(int kr, int kg, int kb)
+{
+	int i;
+	int disp_num = 0;
+	struct mdp_pgc_lut_data *pgc_config;
+
+	for (i = 0; i < GC_LUT_SEGMENTS; i++) {
+		mdss_pp_res->gc_lut_r[disp_num][i].slope =
+		SCALED_BY_KCAL(test_r[i].slope, kr);
+		mdss_pp_res->gc_lut_r[disp_num][i].offset =
+		SCALED_BY_KCAL(test_r[i].offset, kr);
+
+		mdss_pp_res->gc_lut_g[disp_num][i].slope =
+		SCALED_BY_KCAL(test_g[i].slope, kg);
+		mdss_pp_res->gc_lut_g[disp_num][i].offset =
+		SCALED_BY_KCAL(test_g[i].offset, kg);
+
+		mdss_pp_res->gc_lut_b[disp_num][i].slope =
+		SCALED_BY_KCAL(test_b[i].slope, kb);
+		mdss_pp_res->gc_lut_b[disp_num][i].offset =
+		SCALED_BY_KCAL(test_b[i].offset, kb);
+	}
+	pgc_config = &mdss_pp_res->pgc_disp_cfg[disp_num];
+	pgc_config->flags |= MDP_PP_OPS_WRITE;
+	pgc_config->flags |= MDP_PP_OPS_ENABLE;
+	mdss_pp_res->pp_disp_flags[disp_num] |= PP_FLAGS_DIRTY_PGC;
+
+	pr_info(">>>>> %s \n", __func__);
+}
+
+int update_preset_lcdc_lut(void)
+{
+	int ret = 0;
+
+	pr_info("update_preset_lcdc_lut red=[%d], green=[%d], blue=[%d]\n", g_kcal_r, g_kcal_g, g_kcal_b);
+
+	mdss_mdp_pp_argc_kcal(g_kcal_r,g_kcal_g,g_kcal_b);
+
+	if (ret)
+		pr_err("%s: failed to set lut! %d\n", __func__, ret);
+
+	return ret;
+}
+#endif
 
 int mdss_mdp_pp_init(struct device *dev)
 {
@@ -1277,11 +1438,13 @@ int mdss_mdp_pp_init(struct device *dev)
 		if (mdss_pp_res == NULL) {
 			pr_err("%s mdss_pp_res allocation failed!", __func__);
 			ret = -ENOMEM;
-		}
-
-		for (i = 0; i < MDSS_MDP_MAX_DSPP; i++) {
-			mutex_init(&mdss_pp_res->dspp_hist[i].hist_mutex);
-			spin_lock_init(&mdss_pp_res->dspp_hist[i].hist_lock);
+		} else {
+			for (i = 0; i < MDSS_MDP_MAX_DSPP; i++) {
+				mutex_init(
+					&mdss_pp_res->dspp_hist[i].hist_mutex);
+				spin_lock_init(
+					&mdss_pp_res->dspp_hist[i].hist_lock);
+			}
 		}
 	}
 	if (mdata) {
@@ -1291,6 +1454,12 @@ int mdss_mdp_pp_init(struct device *dev)
 			spin_lock_init(&vig[i].pp_res.hist.hist_lock);
 		}
 	}
+#if defined(CONFIG_LCD_KCAL)
+	if (!ret) {
+		mdss_mdp_pp_argc();
+		update_preset_lcdc_lut();
+	}
+#endif
 	mutex_unlock(&mdss_pp_mutex);
 	return ret;
 }
@@ -2178,7 +2347,7 @@ static void pp_hist_read(char __iomem *v_base,
 	hist_info->data[i_start] = data & 0xFFFFFF;
 	for (i = i_start + 1; i < HIST_V_SIZE; i++)
 		hist_info->data[i] = readl_relaxed(v_base) & 0xFFFFFF;
-	for (i = 0; i < i_start - 1; i++)
+	for (i = 0; i < i_start; i++)
 		hist_info->data[i] = readl_relaxed(v_base) & 0xFFFFFF;
 	hist_info->hist_cnt_read++;
 }
@@ -2258,7 +2427,7 @@ int mdss_mdp_histogram_start(struct mdss_mdp_ctl *ctl,
 		if (!i) {
 			ret = -EINVAL;
 			pr_warn("Must pass pipe arguments, %d", i);
-			goto hist_exit;
+			goto hist_stop_clk;
 		}
 
 		for (i = 0; i < MDSS_PP_ARG_NUM; i++) {
@@ -2268,10 +2437,9 @@ int mdss_mdp_histogram_start(struct mdss_mdp_ctl *ctl,
 			if (IS_ERR_OR_NULL(pipe))
 				continue;
 			if (!pipe || pipe->num > MDSS_MDP_SSPP_VIG2) {
-				mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF, false);
 				ret = -EINVAL;
 				pr_warn("Invalid Hist pipe (%d)", i);
-				goto hist_exit;
+				goto hist_stop_clk;
 			}
 			done_shift_bit = (pipe->num * 4);
 			hist_info = &pipe->pp_res.hist;
@@ -2294,8 +2462,8 @@ int mdss_mdp_histogram_start(struct mdss_mdp_ctl *ctl,
 							PP_FLAGS_DIRTY_HIST_COL;
 		}
 	}
+hist_stop_clk:
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF, false);
-
 hist_exit:
 	if (!ret && (PP_LOCAT(req->block) == MDSS_PP_DSPP_CFG)) {
 		mdss_mdp_pp_setup(ctl);
@@ -2988,7 +3156,7 @@ error:
 		ctl = mfd_to_ctl(mfd);
 		mdss_mdp_pp_setup(ctl);
 		if (wait) {
-			ret = wait_for_completion_interruptible_timeout(
+			ret = wait_for_completion_timeout(
 					&ad->comp, HIST_WAIT_TIMEOUT(1));
 			if (ret == 0)
 				ret = -ETIMEDOUT;
@@ -3282,8 +3450,7 @@ static void pp_ad_calc_worker(struct work_struct *work)
 						MDSS_MDP_REG_AD_BL_OUT);
 				if (ad->state & PP_AD_STATE_BL_LIN) {
 					bl = bl >> ad->bl_bright_shift;
-					bl = min_t(u32, bl,
-						MDSS_MAX_BL_BRIGHTNESS);
+					bl = min_t(u32, bl, (AD_BL_LIN_LEN-1));
 					bl = ad->bl_lin_inv[bl];
 					bl = bl << ad->bl_bright_shift;
 				}
@@ -3464,12 +3631,22 @@ int mdss_mdp_calib_mode(struct msm_fb_data_type *mfd,
 int mdss_mdp_calib_config_buffer(struct mdp_calib_config_buffer *cfg,
 						u32 *copyback)
 {
-	int ret = -1;
-	int counter = cfg->size / (sizeof(uint32_t) * 2);
+	int ret = -1, counter;
 	uint32_t *buff = NULL, *buff_org = NULL;
 	void *ptr;
 	int i = 0;
 
+	if (!cfg) {
+		pr_err("Invalid buffer pointer");
+		return ret;
+	}
+
+	if (cfg->size == 0) {
+		pr_err("Invalid buffer size");
+		return ret;
+	}
+
+	counter = cfg->size / (sizeof(uint32_t) * 2);
 	buff_org = buff = kzalloc(cfg->size, GFP_KERNEL);
 	if (buff == NULL) {
 		pr_err("Allocation failed");

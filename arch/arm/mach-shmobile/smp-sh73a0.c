@@ -26,7 +26,6 @@
 #include <asm/smp_plat.h>
 #include <asm/smp_scu.h>
 #include <asm/smp_twd.h>
-#include <asm/hardware/gic.h>
 
 #define WUPCR		IOMEM(0xe6151010)
 #define SRESCR		IOMEM(0xe6151018)
@@ -71,12 +70,11 @@ unsigned int __init sh73a0_get_core_count(void)
 	return scu_get_core_count(scu_base);
 }
 
-void __cpuinit sh73a0_secondary_init(unsigned int cpu)
+void sh73a0_secondary_init(unsigned int cpu)
 {
-	gic_secondary_init(0);
 }
 
-int __cpuinit sh73a0_boot_secondary(unsigned int cpu)
+int sh73a0_boot_secondary(unsigned int cpu)
 {
 	cpu = cpu_logical_map(cpu);
 

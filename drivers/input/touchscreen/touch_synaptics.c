@@ -38,8 +38,13 @@
 
 #include "SynaImage.h"
 
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
+#include <linux/input/sweep2wake.h>
+#endif
 #ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
 #include <linux/input/doubletap2wake.h>
+#endif
 #endif
 
 static struct workqueue_struct *synaptics_wq;
@@ -177,10 +182,6 @@ static struct workqueue_struct *synaptics_wq;
 #define FW_OFFSET_IMAGE_VERSION         0xB100
 
 #define BYTES_PER_FINGER                5
-
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-#define SYNAPTICS_I2C_RETRY	10
-#endif
 
 static struct {
 	u8	finger_status_reg[3];
@@ -664,6 +665,8 @@ static void *get_touch_handle(struct i2c_client *client)
  */
 static int touch_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *buf)
 {
+#define SYNAPTICS_I2C_RETRY 10
+	int retry = 0;
 	struct i2c_msg msgs[] = {
 		{
 			.addr = client->addr,
@@ -679,8 +682,6 @@ static int touch_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *buf)
 		},
 	};
 
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-	int retry;
 	for (retry = 0; retry <= SYNAPTICS_I2C_RETRY; retry++) {
 		if (i2c_transfer(client->adapter, msgs, 2) == 2)
 			break;
@@ -691,13 +692,6 @@ static int touch_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *buf)
 		} else
 			msleep(10);
 	}
-#else
-	if (i2c_transfer(client->adapter, msgs, 2) < 0) {
-		if (printk_ratelimit())
-			TOUCH_ERR_MSG("transfer error\n");
-		return -EIO;
-	}
-#endif
 
 	return 0;
 }
@@ -1609,6 +1603,17 @@ static int synaptics_parse_dt(struct device *dev, struct touch_platform_data *pd
 
 static int synaptics_ts_start(struct synaptics_ts_data *ts)
 {
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+#if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE) || defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
+	bool prevent_sleep = false;
+#endif
+#if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE)
+	prevent_sleep = (s2w_switch > 0) && (s2w_s2sonly == 0);
+#endif
+#if defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
+	prevent_sleep = prevent_sleep || (dt2w_switch > 0);
+#endif
+#endif
 	TOUCH_DEBUG_TRACE("%s\n", __func__);
 
 	if (ts->curr_resume_state)
@@ -1626,9 +1631,9 @@ static int synaptics_ts_start(struct synaptics_ts_data *ts)
 	queue_delayed_work(synaptics_wq,
 			&ts->work_init, msecs_to_jiffies(BOOTING_DELAY));
 
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-		if (dt2w_switch == 1)
-			disable_irq_wake(ts->client->irq);
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+	if (prevent_sleep)
+		disable_irq_wake(ts->client->irq);
 #endif
 
 	return 0;
@@ -1636,6 +1641,17 @@ static int synaptics_ts_start(struct synaptics_ts_data *ts)
 
 static int synaptics_ts_stop(struct synaptics_ts_data *ts)
 {
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+#if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE) || defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
+	bool prevent_sleep = false;
+#endif
+#if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE)
+	prevent_sleep = (s2w_switch > 0) && (s2w_s2sonly == 0);
+#endif
+#if defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
+	prevent_sleep = prevent_sleep || (dt2w_switch > 0);
+#endif
+#endif
 	TOUCH_DEBUG_TRACE("%s\n", __func__);
 
 	if (!ts->curr_resume_state) {
@@ -1649,17 +1665,18 @@ static int synaptics_ts_stop(struct synaptics_ts_data *ts)
 		return 0;
 	}
 
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-	if (dt2w_switch == 0)
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+	if (!prevent_sleep)
 #endif
 	{
-		disable_irq(ts->client->irq);
+		disable_irq_nosync(ts->client->irq);
+
 		cancel_delayed_work_sync(&ts->work_init);
 		release_all_ts_event(ts);
 		touch_power_cntl(ts, POWER_OFF);
 	}
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-	if (dt2w_switch == 1)
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+	if (prevent_sleep)
 		enable_irq_wake(ts->client->irq);
 #endif
 	return 0;
@@ -1811,7 +1828,7 @@ static int synaptics_ts_probe(
 	gpio_direction_input(ts->pdata->irq_gpio);
 
 	ret = request_threaded_irq(client->irq, NULL, touch_irq_handler,
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 			IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND, client->name, ts);
 #else
 			IRQF_TRIGGER_FALLING | IRQF_ONESHOT, client->name, ts);

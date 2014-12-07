@@ -173,6 +173,13 @@ enum msm_spi_pipe_direction {
 #define SPI_BAM_MAX_DESC_NUM      32
 #define SPI_MAX_TRFR_BTWN_RESETS  ((64 * 1024) - 16)  /* 64KB - 16byte */
 
+enum msm_spi_clk_path_vec_idx {
+	MSM_SPI_CLK_PATH_SUSPEND_VEC = 0,
+	MSM_SPI_CLK_PATH_RESUME_VEC  = 1,
+};
+#define MSM_SPI_CLK_PATH_AVRG_BW(dd) (dd->pdata->max_clock_speed * 8)
+#define MSM_SPI_CLK_PATH_BRST_BW(dd) (dd->pdata->max_clock_speed * 8)
+
 static char const * const spi_rsrcs[] = {
 	"spi_clk",
 	"spi_miso",
@@ -253,7 +260,24 @@ static const struct {
 };
 #endif
 
+/**
+ * qup_i2c_clk_path_vote: data to use bus scaling driver for clock path vote
+ *
+ * @client_hdl when zero, client is not registered with the bus scaling driver,
+ *      and bus scaling functionality should not be used. When non zero, it
+ *      is a bus scaling client id and may be used to vote for clock path.
+ * @reg_err when true, registration error was detected and an error message was
+ *      logged. i2c will attempt to re-register but will log error only once.
+ *      once registration succeed, the flag is set to false.
+ */
+struct qup_i2c_clk_path_vote {
+	u32                         client_hdl;
+	struct msm_bus_scale_pdata *pdata;
+	bool                        reg_err;
+};
+
 struct msm_spi_bam_pipe {
+	const char              *name;
 	struct sps_pipe         *handle;
 	struct sps_connect       config;
 	bool                     teardown_required;
@@ -267,6 +291,10 @@ struct msm_spi_bam {
 	struct msm_spi_bam_pipe  prod;
 	struct msm_spi_bam_pipe  cons;
 	bool                     deregister_required;
+	u32			 curr_rx_bytes_recvd;
+	u32			 curr_tx_bytes_sent;
+	u32			 bam_rx_len;
+	u32			 bam_tx_len;
 };
 
 struct msm_spi {
@@ -276,14 +304,12 @@ struct msm_spi {
 	struct device           *dev;
 	spinlock_t               queue_lock;
 	struct mutex             core_lock;
-	struct list_head         queue;
-	struct workqueue_struct *workqueue;
-	struct work_struct       work_data;
 	struct spi_message      *cur_msg;
 	struct spi_transfer     *cur_transfer;
 	struct completion        transfer_complete;
 	struct clk              *clk;    /* core clock */
 	struct clk              *pclk;   /* interface clock */
+	struct qup_i2c_clk_path_vote clk_path_vote;
 	unsigned long            mem_phys_addr;
 	size_t                   mem_size;
 	int                      input_fifo_size;
@@ -366,6 +392,8 @@ struct msm_spi {
 	struct spi_cs_gpio       cs_gpios[ARRAY_SIZE(spi_cs_rsrcs)];
 	enum msm_spi_qup_version qup_ver;
 	int			 max_trfr_len;
+	int			 num_xfrs_grped;
+	u16			 xfrs_delay_usec;
 };
 
 /* Forward declaration */

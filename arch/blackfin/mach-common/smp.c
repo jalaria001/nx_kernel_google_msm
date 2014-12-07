@@ -46,7 +46,7 @@ struct corelock_slot corelock __attribute__ ((__section__(".l2.bss")));
 unsigned long blackfin_iflush_l1_entry[NR_CPUS];
 #endif
 
-struct blackfin_initial_pda __cpuinitdata initial_pda_coreb;
+struct blackfin_initial_pda initial_pda_coreb;
 
 #define BFIN_IPI_TIMER	      0
 #define BFIN_IPI_RESCHEDULE   1
@@ -340,7 +340,7 @@ void smp_send_stop(void)
 	return;
 }
 
-int __cpuinit __cpu_up(unsigned int cpu)
+int __cpu_up(unsigned int cpu)
 {
 	int ret;
 	struct blackfin_cpudata *ci = &per_cpu(cpu_data, cpu);
@@ -370,7 +370,7 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	return ret;
 }
 
-static void __cpuinit setup_secondary(unsigned int cpu)
+static void setup_secondary(unsigned int cpu)
 {
 	unsigned long ilat;
 
@@ -388,7 +388,7 @@ static void __cpuinit setup_secondary(unsigned int cpu)
 	    IMASK_IVG10 | IMASK_IVG9 | IMASK_IVG8 | IMASK_IVG7 | IMASK_IVGHW;
 }
 
-void __cpuinit secondary_start_kernel(void)
+void secondary_start_kernel(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct mm_struct *mm = &init_mm;

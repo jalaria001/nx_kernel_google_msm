@@ -52,6 +52,21 @@
 #include <mach/msm_serial_hs_lite.h>
 #include <mach/board_lge.h>
 
+#ifdef CONFIG_CPU_FREQ_GOV_UBERDEMAND
+int set_second_phase_freq(int cpufreq);
+#endif
+
+#ifdef CONFIG_CPU_FREQ_GOV_BADASS
+int set_two_phase_freq_badass(int cpufreq);
+int set_three_phase_freq_badass(int cpufreq);
+#endif
+
+#if defined(CONFIG_LCD_KCAL)
+#include <linux/module.h>
+#include "../../../../drivers/video/msm/mdss/mdss_fb.h"
+extern int update_preset_lcdc_lut(void);
+#endif
+
 
 static struct memtype_reserve msm8974_reserve_table[] __initdata = {
 	[MEMTYPE_SMI] = {
@@ -88,6 +103,81 @@ static void __init msm8974_early_memory(void)
 	of_scan_flat_dt(dt_scan_for_memory_hole, msm8974_reserve_table);
 }
 
+#if defined(CONFIG_LCD_KCAL)
+int g_kcal_r;
+int g_kcal_g;
+int g_kcal_b;
+
+int kcal_set_values(int kcal_r, int kcal_g, int kcal_b)
+{
+	if (kcal_r < 0 || kcal_r > 255)
+		return 1;
+	if (kcal_g < 0 || kcal_g > 255)
+		return 1;
+	if (kcal_b < 0 || kcal_b > 255)
+		return 1;
+
+	g_kcal_r = kcal_r;
+	g_kcal_g = kcal_g;
+	g_kcal_b = kcal_b;
+
+	return 0;
+}
+
+static int kcal_get_values(int *kcal_r, int *kcal_g, int *kcal_b)
+{
+	*kcal_r = g_kcal_r;
+	*kcal_g = g_kcal_g;
+	*kcal_b = g_kcal_b;
+	return 0;
+}
+
+static int kcal_refresh_values(void)
+{
+	return update_preset_lcdc_lut();
+}
+
+static struct kcal_platform_data kcal_pdata = {
+	.set_values = kcal_set_values,
+	.get_values = kcal_get_values,
+	.refresh_display = kcal_refresh_values
+};
+
+static struct platform_device kcal_platrom_device = {
+	.name = "kcal_ctrl",
+	.dev = {
+		.platform_data = &kcal_pdata,
+	}
+};
+
+void __init lge_add_lcd_kcal_devices(void)
+{
+	pr_info (" LCD_KCAL_DEBUG : %s \n", __func__);
+	platform_device_register(&kcal_platrom_device);
+};
+#endif
+
+#ifdef CONFIG_BRICKED_THERMAL
+static struct msm_thermal_data msm_thermal_pdata = {
+	.sensor_id = 0,
+	.poll_ms = 400,
+	.shutdown_temp = 95,
+
+	.allowed_max_high = 90,
+	.allowed_max_low = 86,
+	.allowed_max_freq = 300000,
+
+	.allowed_mid_high = 87,
+	.allowed_mid_low = 82,
+	.allowed_mid_freq = 960000,
+
+	.allowed_low_high = 85,
+	.allowed_low_low = 79,
+	.allowed_low_freq = 1728000,
+};
+#endif
+
+
 /*
  * Used to satisfy dependencies for devices that need to be
  * run early or in a particular order. Most likely your device doesn't fall
@@ -109,10 +199,17 @@ void __init msm8974_add_drivers(void)
 	krait_power_init();
 	msm_clock_init(&msm8974_clock_init_data);
 	tsens_tm_init_driver();
+#ifdef CONFIG_BRICKED_THERMAL
+	msm_thermal_init(&msm_thermal_pdata);
+#else
 	msm_thermal_device_init();
+#endif
 	lge_add_persistent_device();
 #if defined (CONFIG_BCMDHD) || defined (CONFIG_BCMDHD_MODULE)
 	init_bcm_wifi();
+#endif
+#if defined(CONFIG_LCD_KCAL)
+	lge_add_lcd_kcal_devices();
 #endif
 }
 
@@ -181,6 +278,13 @@ void __init msm8974_init(void)
 	regulator_has_full_constraints();
 	board_dt_populate(adata);
 	msm8974_add_drivers();
+#ifdef CONFIG_CPU_FREQ_GOV_UBERDEMAND
+	set_second_phase_freq(1728000);
+#endif
+#ifdef CONFIG_CPU_FREQ_GOV_BADASS
+	set_two_phase_freq_badass(1267200);
+	set_three_phase_freq_badass(1574400);
+#endif
 }
 
 void __init msm8974_init_very_early(void)
